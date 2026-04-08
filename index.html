@@ -54,6 +54,13 @@ td.assign-col{position:sticky;left:180px;z-index:1;background:#fff;padding:4px 6
 .btn-add{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 tr:last-child td{border-bottom:none}
 .del-btn{font-size:11px;color:#ccc;cursor:pointer;flex-shrink:0;padding:2px 4px;line-height:1}
+.del-btn:hover{color:#e24b4a}
+.task-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;cursor:pointer}
+.task-name:hover{color:#185FA5;text-decoration:underline}
+.memo-dot{width:6px;height:6px;border-radius:50%;background:#FAC775;flex-shrink:0;display:inline-block}
+.memo-modal{width:400px}
+.memo-modal textarea{width:100%;font-size:13px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;outline:none;resize:vertical;min-height:120px;font-family:inherit;line-height:1.6}
+.memo-task-label{font-size:11px;color:#aaa;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -94,9 +101,24 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="field"><label>開始週</label><select id="m-start"></select></div>
     <div class="field"><label>終了週</label><select id="m-end"></select></div>
+    <div class="field"><label>メモ（任意）</label><textarea id="m-memo" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;outline:none;resize:vertical;min-height:64px;font-family:inherit;line-height:1.6" placeholder="備考、リンク、引き継ぎ内容など"></textarea></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
       <button class="btn-add" onclick="addTask()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="memo-modal">
+  <div class="modal memo-modal">
+    <div class="memo-task-label" id="memo-task-label"></div>
+    <h3 id="memo-modal-title" style="margin-bottom:0.75rem"></h3>
+    <div class="field">
+      <textarea id="memo-text" placeholder="備考、リンク、引き継ぎ内容など"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeMemoModal()">キャンセル</button>
+      <button class="btn-add" onclick="saveMemo()">保存</button>
     </div>
   </div>
 </div>
@@ -158,13 +180,14 @@ function loadData() {
       const p = JSON.parse(raw);
       tasks = p.tasks.map(t => {
         if (t.weeks.length < N) t.weeks = t.weeks.concat(Array(N - t.weeks.length).fill(0));
+        if (t.memo === undefined) t.memo = '';
         return t;
       });
       nextId = p.nextId || 20;
       return;
     }
   } catch(e) {}
-  tasks = DEFAULT_TASKS.map(t => ({...t, weeks:[...t.weeks]}));
+  tasks = DEFAULT_TASKS.map(t => ({...t, weeks:[...t.weeks], memo:''}));
   nextId = 20;
 }
 
@@ -208,7 +231,7 @@ function render() {
   cats.forEach(cat => {
     h += `<tr class="cat-header"><td class="task-col" colspan="${2+N}">${cat}</td></tr>`;
     filtered.filter(t => t.cat===cat).forEach(t => {
-      h += `<tr><td class="task-col"><div class="task-inner"><span class="task-name">${t.name}</span><span class="del-btn" onclick="del(${t.id})">✕</span></div></td>`;
+      h += `<tr><td class="task-col"><div class="task-inner"><span class="task-name" onclick="openMemoModal(${t.id})">${t.name}</span>${t.memo?'<span class="memo-dot"></span>':''}<span class="del-btn" onclick="del(${t.id})">✕</span></div></td>`;
       h += `<td class="assign-col"><span class="badge ${badgeCls(t.assign)}">${aLabel(t.assign)}</span></td>`;
       t.weeks.forEach((on,wi) => {
         h += `<td class="week-cell${wi===todayIdx?' today-col':''}" onclick="toggle(${t.id},${wi})">`;
@@ -271,12 +294,41 @@ function addTask() {
   const e = parseInt(document.getElementById('m-end').value);
   const weeks = Array(N).fill(0);
   for (let i=Math.min(s,e); i<=Math.max(s,e); i++) weeks[i]=1;
-  tasks.push({id:nextId++,cat,name,assign,weeks});
+  const memo = document.getElementById('m-memo').value.trim();
+  tasks.push({id:nextId++,cat,name,assign,weeks,memo});
   document.getElementById('m-name').value = '';
+  document.getElementById('m-memo').value = '';
   closeModal(); render(); saveData();
 }
 
 document.getElementById('modal').addEventListener('click', e => { if(e.target.id==='modal') closeModal(); });
+document.getElementById('memo-modal').addEventListener('click', e => { if(e.target.id==='memo-modal') closeMemoModal(); });
+
+let memoTargetId = null;
+
+function openMemoModal(id) {
+  const t = tasks.find(x => x.id===id);
+  if (!t) return;
+  memoTargetId = id;
+  document.getElementById('memo-task-label').textContent = t.cat + ' › ' + t.name;
+  document.getElementById('memo-modal-title').textContent = 'メモ';
+  document.getElementById('memo-text').value = t.memo || '';
+  document.getElementById('memo-modal').classList.add('open');
+  setTimeout(() => document.getElementById('memo-text').focus(), 50);
+}
+
+function closeMemoModal() {
+  memoTargetId = null;
+  document.getElementById('memo-modal').classList.remove('open');
+}
+
+function saveMemo() {
+  const t = tasks.find(x => x.id===memoTargetId);
+  if (t) {
+    t.memo = document.getElementById('memo-text').value.trim();
+    closeMemoModal(); render(); saveData();
+  }
+}
 
 loadData();
 render();
