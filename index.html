@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>王子サーモン ECコンサル ガントチャート</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f8f8f6;color:#1a1a1a;padding:2rem}
+h1{font-size:18px;font-weight:500;margin-bottom:1.5rem;color:#1a1a1a}
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:1rem;flex-wrap:wrap}
+.filter-btn{font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;transition:all .15s}
+.filter-btn.active{background:#f0f0ee;color:#1a1a1a;border-color:#aaa}
+.add-btn{font-size:12px;padding:4px 14px;border-radius:20px;border:1px solid #ddd;background:#fff;color:#444;cursor:pointer;margin-left:auto}
+.add-btn:hover{background:#f0f0ee}
+.gantt-wrap{overflow-x:auto;border:1px solid #e5e5e0;border-radius:12px;background:#fff}
+table{border-collapse:collapse;font-size:12px}
+th,td{border-right:1px solid #ebebeb;border-bottom:1px solid #ebebeb}
+th{background:#f8f8f6;font-weight:500;font-size:11px;color:#888;padding:6px 8px;white-space:nowrap;position:sticky;top:0;z-index:2}
+th.task-col{position:sticky;left:0;z-index:3;background:#f8f8f6;width:160px;min-width:160px;text-align:left}
+th.assign-col{position:sticky;left:160px;z-index:3;background:#f8f8f6;width:76px;min-width:76px;text-align:center}
+td.task-col{position:sticky;left:0;z-index:1;background:#fff;padding:6px 10px;color:#1a1a1a;white-space:nowrap;font-size:12px;width:160px;min-width:160px;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+td.assign-col{position:sticky;left:160px;z-index:1;background:#fff;padding:4px 6px;text-align:center;width:76px;min-width:76px}
+.cat-header td{background:#f8f8f6 !important;font-weight:500;font-size:11px;color:#888;padding:5px 10px;letter-spacing:.05em}
+.week-cell{width:44px;min-width:44px;text-align:center;padding:3px;cursor:pointer}
+.bar{width:36px;height:18px;border-radius:3px;display:inline-block;vertical-align:middle}
+.bar-empty{background:transparent}
+.bar-me{background:#B5D4F4}
+.bar-hiji{background:#9FE1CB}
+.bar-both{background:#FAC775}
+.week-cell:hover .bar-empty{background:#f0f0ee}
+.badge{font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap;display:inline-block}
+.badge-me{background:#E6F1FB;color:#185FA5}
+.badge-hiji{background:#E1F5EE;color:#0F6E56}
+.badge-both{background:#FAEEDA;color:#854F0B}
+.today-col{background:#fffbe6 !important}
+.legend{display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:12px;color:#666}
+.leg-dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+.sep{width:1px;height:16px;background:#e5e5e0;display:inline-block}
+.save-label{font-size:11px;color:#bbb;margin-left:8px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border:1px solid #e0e0da;border-radius:14px;padding:1.5rem;width:320px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.modal h3{font-size:15px;font-weight:500;margin-bottom:1rem}
+.field{margin-bottom:12px}
+.field label{font-size:12px;color:#888;display:block;margin-bottom:4px}
+.field input,.field select{width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;outline:none}
+.modal-btns{display:flex;gap:8px;margin-top:1rem;justify-content:flex-end}
+.modal-btns button{font-size:12px;padding:7px 16px;border-radius:8px;cursor:pointer;border:1px solid #ddd}
+.btn-cancel{background:#f5f5f3;color:#666}
+.btn-add{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+tr:last-child td{border-bottom:none}
+.del-btn{font-size:10px;color:#ddd;cursor:pointer;margin-left:6px}
+.del-btn:hover{color:#e24b4a}
+</style>
+</head>
+<body>
+<h1>王子サーモン — ECコンサル ガントチャート</h1>
+
+<div class="legend">
+  <span class="leg-item"><span class="leg-dot" style="background:#B5D4F4"></span>自分</span>
+  <span class="leg-item"><span class="leg-dot" style="background:#9FE1CB"></span>土方さん</span>
+  <span class="leg-item"><span class="leg-dot" style="background:#FAC775"></span>共同</span>
+  <span class="save-label" id="save-label"></span>
+</div>
+
+<div class="toolbar">
+  <button class="filter-btn active" onclick="setFilter('all',this)">すべて</button>
+  <button class="filter-btn" onclick="setFilter('me',this)">自分</button>
+  <button class="filter-btn" onclick="setFilter('hiji',this)">土方さん</button>
+  <button class="filter-btn" onclick="setFilter('both',this)">共同</button>
+  <span class="sep"></span>
+  <button class="filter-btn active" onclick="setCatFilter('all',this)">全カテゴリ</button>
+  <button class="filter-btn" onclick="setCatFilter('EC全体',this)">EC全体</button>
+  <button class="filter-btn" onclick="setCatFilter('Amazon',this)">Amazon</button>
+  <button class="filter-btn" onclick="setCatFilter('Meta',this)">Meta</button>
+  <button class="filter-btn" onclick="setCatFilter('SNS',this)">SNS</button>
+  <button class="add-btn" onclick="openModal()">＋ タスク追加</button>
+</div>
+
+<div class="gantt-wrap"><table id="gantt"></table></div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3>タスクを追加</h3>
+    <div class="field"><label>タスク名</label><input id="m-name" placeholder="例：商品ページ更新"></div>
+    <div class="field"><label>カテゴリ</label>
+      <select id="m-cat"><option>EC全体</option><option>Amazon</option><option>Meta</option><option>SNS</option><option>楽天</option><option>TikTok</option></select>
+    </div>
+    <div class="field"><label>担当</label>
+      <select id="m-assign"><option value="me">自分</option><option value="hiji">土方さん</option><option value="both">共同</option></select>
+    </div>
+    <div class="field"><label>開始週</label><select id="m-start"></select></div>
+    <div class="field"><label>終了週</label><select id="m-end"></select></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-add" onclick="addTask()">追加</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'oji_salmon_gantt_v1';
+
+function buildWeeks() {
+  const ws = [];
+  const d = new Date(2026, 3, 6);
+  const end = new Date(2026, 11, 28);
+  while (d <= end) {
+    ws.push({ label: (d.getMonth()+1)+'/'+(d.getDate()), month: (d.getMonth()+1)+'月', ts: +d });
+    d.setDate(d.getDate()+7);
+  }
+  return ws;
+}
+
+const WEEKS = buildWeeks();
+const N = WEEKS.length;
+
+const todayIdx = (() => {
+  const now = Date.now();
+  let best = 0;
+  WEEKS.forEach((w,i) => { if (w.ts <= now) best = i; });
+  return best;
+})();
+
+function range(s,e) { const a=Array(N).fill(0); for(let i=s;i<=e&&i<N;i++)a[i]=1; return a; }
+function sparse(idxs) { const a=Array(N).fill(0); idxs.forEach(i=>{if(i<N)a[i]=1;}); return a; }
+function biweekly(off) { const a=Array(N).fill(0); for(let i=off;i<N;i+=2)a[i]=1; return a; }
+function monthly(off) { const a=Array(N).fill(0); for(let i=off;i<N;i+=4)a[i]=1; return a; }
+
+const DEFAULT_TASKS = [
+  {id:1,cat:'EC全体',name:'ブランド戦略/VMV',assign:'me',weeks:range(0,2)},
+  {id:2,cat:'EC全体',name:'カスタマージャーニー整理',assign:'me',weeks:range(0,1)},
+  {id:3,cat:'EC全体',name:'WEB/EC リニューアル',assign:'me',weeks:range(2,7)},
+  {id:4,cat:'EC全体',name:'キャッチコピー制作',assign:'me',weeks:range(1,3)},
+  {id:5,cat:'Amazon',name:'新商品出品対応',assign:'hiji',weeks:range(2,N-1)},
+  {id:6,cat:'Amazon',name:'既存商品ページ管理',assign:'hiji',weeks:range(0,N-1)},
+  {id:7,cat:'Amazon',name:'広告運用/PDCA',assign:'me',weeks:range(0,N-1)},
+  {id:8,cat:'Amazon',name:'A+コンテンツ制作',assign:'me',weeks:range(3,5)},
+  {id:9,cat:'Amazon',name:'在庫・注文管理',assign:'hiji',weeks:range(0,N-1)},
+  {id:10,cat:'Amazon',name:'販売戦略立案',assign:'both',weeks:sparse([1,5,9,17,25,33])},
+  {id:11,cat:'Meta',name:'広告クリエイティブ制作',assign:'me',weeks:biweekly(0)},
+  {id:12,cat:'Meta',name:'広告運用/PDCA',assign:'me',weeks:range(0,N-1)},
+  {id:13,cat:'Meta',name:'ターゲット・予算設定',assign:'both',weeks:monthly(0)},
+  {id:14,cat:'SNS',name:'オーガニック投稿',assign:'hiji',weeks:range(0,N-1)},
+  {id:15,cat:'SNS',name:'社長個人アカウント',assign:'hiji',weeks:range(0,N-1)},
+  {id:16,cat:'SNS',name:'コンテンツ企画',assign:'both',weeks:monthly(1)},
+];
+
+let tasks, nextId;
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      tasks = p.tasks.map(t => {
+        if (t.weeks.length < N) t.weeks = t.weeks.concat(Array(N - t.weeks.length).fill(0));
+        return t;
+      });
+      nextId = p.nextId || 20;
+      return;
+    }
+  } catch(e) {}
+  tasks = DEFAULT_TASKS.map(t => ({...t, weeks:[...t.weeks]}));
+  nextId = 20;
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({tasks, nextId}));
+    const now = new Date();
+    document.getElementById('save-label').textContent = '自動保存 ' + now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) {}
+}
+
+let filterAssign = 'all', filterCat = 'all';
+const barCls = a => a==='me'?'bar-me':a==='hiji'?'bar-hiji':'bar-both';
+const badgeCls = a => a==='me'?'badge-me':a==='hiji'?'badge-hiji':'badge-both';
+const aLabel = a => a==='me'?'自分':a==='hiji'?'土方さん':'共同';
+
+function render() {
+  const tbl = document.getElementById('gantt');
+  const filtered = tasks.filter(t => {
+    if (filterAssign !== 'all' && t.assign !== filterAssign) return false;
+    if (filterCat !== 'all' && t.cat !== filterCat) return false;
+    return true;
+  });
+  const cats = [...new Set(filtered.map(t => t.cat))];
+
+  const months = [];
+  let cur = '', cnt = 0;
+  WEEKS.forEach(w => {
+    if (w.month !== cur) { if (cnt) months.push({label:cur,span:cnt}); cur=w.month; cnt=1; }
+    else cnt++;
+  });
+  months.push({label:cur,span:cnt});
+
+  let h = '<thead><tr>';
+  h += '<th class="task-col" rowspan="2">タスク</th><th class="assign-col" rowspan="2">担当</th>';
+  months.forEach(m => h += `<th style="background:#f8f8f6;text-align:center;font-size:11px;color:#888;padding:5px 0" colspan="${m.span}">${m.label}</th>`);
+  h += '</tr><tr>';
+  WEEKS.forEach((w,i) => h += `<th class="week-cell${i===todayIdx?' today-col':''}">${w.label}</th>`);
+  h += '</tr></thead><tbody>';
+
+  cats.forEach(cat => {
+    h += `<tr class="cat-header"><td class="task-col" colspan="${2+N}">${cat}</td></tr>`;
+    filtered.filter(t => t.cat===cat).forEach(t => {
+      h += `<tr><td class="task-col">${t.name}<span class="del-btn" onclick="del(${t.id})">✕</span></td>`;
+      h += `<td class="assign-col"><span class="badge ${badgeCls(t.assign)}">${aLabel(t.assign)}</span></td>`;
+      t.weeks.forEach((on,wi) => {
+        h += `<td class="week-cell${wi===todayIdx?' today-col':''}" onclick="toggle(${t.id},${wi})">`;
+        h += `<span class="bar ${on?barCls(t.assign):'bar-empty'}"></span></td>`;
+      });
+      h += '</tr>';
+    });
+  });
+
+  if (!cats.length) h += `<tr><td colspan="${2+N}" style="padding:2rem;text-align:center;color:#aaa;font-size:13px">タスクがありません</td></tr>`;
+  tbl.innerHTML = h + '</tbody>';
+}
+
+function toggle(id, wi) {
+  const t = tasks.find(x => x.id===id);
+  if (t) { t.weeks[wi] ^= 1; render(); saveData(); }
+}
+
+function del(id) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  tasks = tasks.filter(t => t.id!==id);
+  render(); saveData();
+}
+
+function setFilter(v, btn) {
+  filterAssign = v;
+  document.querySelectorAll('.toolbar .filter-btn').forEach((b,i) => { if(i<4) b.classList.remove('active'); });
+  btn.classList.add('active'); render();
+}
+
+function setCatFilter(v, btn) {
+  filterCat = v;
+  const cats = ['全カテゴリ','EC全体','Amazon','Meta','SNS'];
+  document.querySelectorAll('.toolbar .filter-btn').forEach(b => { if(cats.includes(b.textContent)) b.classList.remove('active'); });
+  btn.classList.add('active'); render();
+}
+
+function populateSelects() {
+  ['m-start','m-end'].forEach((id,idx) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    WEEKS.forEach((w,i) => {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = w.month + ' ' + w.label;
+      sel.appendChild(o);
+    });
+    sel.value = idx===1 ? Math.min(3,N-1) : 0;
+  });
+}
+
+function openModal() { populateSelects(); document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function addTask() {
+  const name = document.getElementById('m-name').value.trim();
+  if (!name) return;
+  const cat = document.getElementById('m-cat').value;
+  const assign = document.getElementById('m-assign').value;
+  const s = parseInt(document.getElementById('m-start').value);
+  const e = parseInt(document.getElementById('m-end').value);
+  const weeks = Array(N).fill(0);
+  for (let i=Math.min(s,e); i<=Math.max(s,e); i++) weeks[i]=1;
+  tasks.push({id:nextId++,cat,name,assign,weeks});
+  document.getElementById('m-name').value = '';
+  closeModal(); render(); saveData();
+}
+
+document.getElementById('modal').addEventListener('click', e => { if(e.target.id==='modal') closeModal(); });
+
+loadData();
+render();
+</script>
+</body>
+</html>
